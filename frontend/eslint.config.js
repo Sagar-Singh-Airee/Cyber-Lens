@@ -3,6 +3,8 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
+// Flat ESLint config: browser globals allow Web Audio/canvas APIs while the
+// React Hooks rules protect effect cleanup and state dependencies.
 export default [
   { ignores: ['dist'] },
   {

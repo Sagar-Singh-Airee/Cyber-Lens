@@ -1,11 +1,23 @@
+/**
+ * CyberLens client workbench.
+ *
+ * This file intentionally keeps the hackathon demo in one place: a reviewer can
+ * trace input → request → evidence dossier without hunting through a component
+ * hierarchy. The API remains the source of truth for risk assessment; visual
+ * forensics here explain and present the response, never execute a threat.
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import confetti from 'canvas-confetti'
 import './styles.css'
 
+// Vite variables are public after build. This may contain only an endpoint—never
+// an OpenAI key or any other secret. The fallback serves local development.
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 // ─── Hackathon Judge Chaos Presets ───────────────────────────────────────────
+// Curated, non-live samples make the demo repeatable and avoid asking judges to
+// paste unknown content. They are inputs to the same real analysis flow.
 const CHAOS_PRESETS = [
   {
     id: 'typosquat-url',
@@ -58,6 +70,7 @@ Oct 30 04:12:12 bash[18422]: chmod +x /tmp/.miner && /tmp/.miner --background`
   }
 ]
 
+// Copy and classification metadata shared by input tabs and the visual dossier.
 const typeInfo = {
   url: {
     label: 'Suspicious URL',
@@ -76,6 +89,8 @@ const typeInfo = {
   }
 }
 
+// The guide is product copy, not security logic. Keeping it as data makes the
+// sidecar declarative and easy to update without changing interaction code.
 const guideSteps = [
   ['01', 'Dual-Engine Resiliency', 'Zero downtime: seamless fallback to deterministic heuristic engine if external AI fails.'],
   ['02', 'Zero-Trust Data Vault', 'Strict zero-retention: raw submissions are never stored, logged, or indexed.'],
@@ -83,6 +98,8 @@ const guideSteps = [
   ['04', 'Automated Defense Rules', 'Instantly exports firewall drop rules, WAF signatures, and incident runbooks.']
 ]
 
+// A finite terminal script powers the loading affordance; it never claims the
+// browser actually performed DNS lookups, detonation, or active scanning.
 const SCAN_LINES = [
   '⚡ [CYBER-CORE] Initializing telemetry inspection matrix...',
   '🛰️ [DNS-RADAR] Resolving canonical routing & subdomain depth...',
@@ -96,12 +113,18 @@ const SCAN_LINES = [
 
 // ─── Tactical Web Audio Synthesizer ───────────────────────────────────────────
 class TactileAudioEngine {
+  /**
+   * Lazily creates browser-native audio after an interaction. Browsers prohibit
+   * autoplay, so this class degrades silently when audio is unavailable instead
+   * of allowing a cosmetic effect to block threat analysis.
+   */
   constructor() {
     this.ctx = null
     this.enabled = true
   }
 
   init() {
+    // AudioContext allocation is deferred until the user has interacted.
     if (!this.ctx && typeof window !== 'undefined') {
       const AudioCtx = window.AudioContext || window.webkitAudioContext
       if (AudioCtx) this.ctx = new AudioCtx()
@@ -112,6 +135,7 @@ class TactileAudioEngine {
   }
 
   play(type) {
+    // Short oscillator envelopes give feedback without adding downloaded assets.
     if (!this.enabled) return
     try {
       this.init()
@@ -174,7 +198,8 @@ class TactileAudioEngine {
         })
       }
     } catch {
-      // Audio policy safe
+      // Audio is decorative. A browser policy failure must be invisible to the
+      // security workflow, so it is intentionally ignored.
     }
   }
 }
@@ -183,6 +208,13 @@ const audio = new TactileAudioEngine()
 
 // ─── Mathematical Shannon Entropy Calculation ─────────────────────────────────
 function calculateShannonEntropy(str) {
+  /**
+   * Return Shannon entropy in bits per alphanumeric character.
+   *
+   * This is an explanatory visual indicator for randomness/obfuscation—not a
+   * malware verdict. Filtering punctuation makes values comparable across URL,
+   * email, and log inputs.
+   */
   if (!str) return 0
   const clean = str.toLowerCase().replace(/[^a-z0-9]/g, '')
   if (!clean.length) return 0
@@ -198,6 +230,13 @@ function calculateShannonEntropy(str) {
 
 // ─── Mind-Blowing Feature 1: Dynamic Threat Particle & Ink Canvas ──────────────
 function ThreatParticleCanvas({ mode = 'idle', enabled = true, theme = 'parchment' }) {
+  /**
+   * Draw a passive canvas backdrop whose movement reflects UI state.
+   *
+   * Canvas is isolated from React state updates for animation performance. The
+   * cleanup function is essential: it cancels the frame and listeners whenever
+   * theme/mode changes or the component unmounts.
+   */
   const canvasRef = useRef(null)
 
   useEffect(() => {
@@ -228,7 +267,7 @@ function ThreatParticleCanvas({ mode = 'idle', enabled = true, theme = 'parchmen
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseleave', handleMouseLeave)
 
-    // Particle count
+    // A fixed count keeps the O(n²) line-connection effect affordable on laptops.
     const PARTICLE_COUNT = 90
     const particles = []
 
@@ -246,16 +285,15 @@ function ThreatParticleCanvas({ mode = 'idle', enabled = true, theme = 'parchmen
       })
     }
 
-    let frame = 0
     const render = () => {
-      frame++
       ctx.clearRect(0, 0, width, height)
 
       const centerX = width / 2
       const centerY = height / 2
       const isDark = theme === 'blueprint'
 
-      // Color palette based on threat mode
+      // Color/motion are supplementary cues; the textual risk tag carries the
+      // same information for accessibility and reduced-motion users.
       let dotColor = isDark ? 'rgba(200, 215, 235, 0.35)' : 'rgba(30, 35, 45, 0.28)'
       let lineColor = isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(217, 45, 32, 0.06)'
       let lineDistMax = 110
@@ -300,7 +338,7 @@ function ThreatParticleCanvas({ mode = 'idle', enabled = true, theme = 'parchmen
           p.y += p.vy
         }
 
-        // Mouse displacement
+        // Pointer displacement is purely visual; it never changes analysis data.
         if (mouse.active) {
           const dx = p.x - mouse.x
           const dy = p.y - mouse.y
@@ -361,6 +399,12 @@ function ThreatParticleCanvas({ mode = 'idle', enabled = true, theme = 'parchmen
 
 // ─── Mind-Blowing Feature 2: Threat DNA Genome Sequencer ───────────────────────
 function ThreatDNASquencer({ text, inputType, onSelectGene }) {
+  /**
+   * Convert the current draft into explainable visual “codons”.
+   *
+   * This is a pre-submit teaching layer distinct from backend findings. `useMemo`
+   * avoids recalculating entropy and pattern checks on unrelated UI updates.
+   */
   const codons = useMemo(() => {
     if (!text.trim()) {
       return [
@@ -490,6 +534,7 @@ function ThreatDNASquencer({ text, inputType, onSelectGene }) {
 
 // ─── Minimalist Architectural Lens Vector SVG ─────────────────────────────────
 function ArchitecturalLensMark({ size = 28 }) {
+  /** Render the reusable decorative product mark at an explicit, stable size. */
   return (
     <svg
       width={size}
@@ -518,6 +563,12 @@ function ArchitecturalLensMark({ size = 28 }) {
 
 // ─── Forensic Deep-Dive Anatomy Component ─────────────────────────────────────
 function ForensicAnatomyView({ text, inputType }) {
+  /**
+   * Render a passive breakdown of the content currently being reviewed.
+   *
+   * Parsing errors return `null` rather than interrupting the result view: users
+   * may paste incomplete URLs while the backend can still offer useful signals.
+   */
   const entropy = useMemo(() => calculateShannonEntropy(text), [text])
 
   const urlParts = useMemo(() => {
@@ -648,6 +699,12 @@ function ForensicAnatomyView({ text, inputType }) {
 
 // ─── Virtual Airgapped Detonation Chamber ─────────────────────────────────────
 function SandboxDetonationChamber({ inputType, risk }) {
+  /**
+   * Display an air-gapped teaching mockup, never the supplied URL or HTML.
+   *
+   * This avoids embedding/executing untrusted pages while still making a
+   * credential-exfiltration pattern concrete during a demo.
+   */
   const isDanger = risk === 'high'
 
   return (
@@ -677,6 +734,12 @@ function SandboxDetonationChamber({ inputType, risk }) {
 
 // ─── 1-Click Automated Defense Rules Generator ────────────────────────────────
 function AutomatedDefenseRules({ text, onCopyRule, copied }) {
+  /**
+   * Generate reviewable response snippets from visible indicators.
+   *
+   * Copying is intentionally the final action: CyberLens never runs a firewall,
+   * DNS, WAF, or mail command automatically. Operators must review scope first.
+   */
   const [activeRuleTab, setActiveRuleTab] = useState('firewall')
 
   const extractedIp = useMemo(() => {
@@ -751,6 +814,11 @@ sudo fail2ban-client set sshd banip ${extractedIp}`
 
 // ─── Terminal Scan Live Stream ────────────────────────────────────────────────
 function TerminalScan() {
+  /**
+   * Present a bounded, accessible progress narrative while the API request runs.
+   * Timers are cleaned up on unmount so a completed/cancelled scan cannot leave
+   * background state updates running.
+   */
   const [lines, setLines] = useState([SCAN_LINES[0]])
   const [cursor, setCursor] = useState(true)
 
@@ -799,6 +867,11 @@ function TerminalScan() {
 
 // ─── Main Architectural Application ───────────────────────────────────────────
 function App() {
+  /**
+   * Own the complete user journey: local preferences, one in-flight submission,
+   * result presentation, and device-only history. Raw input is not persisted;
+   * history stores only compact completed-result summaries for convenience.
+   */
   const [theme, setTheme] = useState(() => localStorage.getItem('cyberlens-theme') || 'parchment')
   const [particlesEnabled, setParticlesEnabled] = useState(true)
   const [particleMode, setParticleMode] = useState('idle')
@@ -824,47 +897,38 @@ function App() {
   const inputRef = useRef(null)
   const resultRef = useRef(null)
 
-  // Sync theme
+  // Persist a non-sensitive visual preference so a return visit feels intentional.
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('cyberlens-theme', theme)
   }, [theme])
 
-  // Save history
+  // Keep at most five summaries and never put original submissions in localStorage.
   useEffect(() => {
     localStorage.setItem('cyberlens-history', JSON.stringify(history.slice(0, 5)))
   }, [history])
 
-  // Toast handler
+  // One reusable ephemeral notification keeps feedback consistent across controls.
   const showToast = useCallback(msg => {
     setToastMsg(msg)
     setToastVisible(true)
     setTimeout(() => setToastVisible(false), 2800)
   }, [])
 
-  // Keyboard shortcut Ctrl+Enter
-  useEffect(() => {
-    function handleKeyDown(e) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault()
-        if (text.trim() && status !== 'loading') analyze()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  })
-
   function toggleTheme() {
+    /** Switch only theme tokens; app data and results stay untouched. */
     audio.play('click')
     setTheme(t => (t === 'parchment' ? 'blueprint' : 'parchment'))
   }
 
   function toggleParticles() {
+    /** Let motion-sensitive users disable the decorative canvas immediately. */
     audio.play('click')
     setParticlesEnabled(p => !p)
   }
 
   function toggleAudio() {
+    /** Keep sound opt-out local and synchronised with the shared audio engine. */
     audio.enabled = !soundEnabled
     setSoundEnabled(!soundEnabled)
     if (!soundEnabled) audio.play('click')
@@ -874,6 +938,7 @@ function App() {
   const charRemaining = 6000 - text.length
 
   function chooseType(type) {
+    /** Start a new vector review without carrying a prior result into a new type. */
     audio.play('click')
     setInputType(type)
     setResult(null)
@@ -883,6 +948,7 @@ function App() {
   }
 
   function fillPreset(preset) {
+    /** Load one deterministic judge sample, then place focus back in the editor. */
     audio.play('click')
     setInputType(preset.type)
     setText(preset.payload)
@@ -893,7 +959,13 @@ function App() {
     setTimeout(() => inputRef.current?.focus(), 0)
   }
 
-  async function analyze() {
+  const analyze = useCallback(async () => {
+    /**
+     * Submit only a trimmed, user-provided payload and render the typed response.
+     *
+     * Status/particle transitions make progress clear; error detail comes only
+     * from the safe API contract or a local connection message, never a stack trace.
+     */
     if (!text.trim()) {
       audio.play('danger')
       setError('Please provide a URL, email, or log excerpt for forensic triage.')
@@ -920,6 +992,7 @@ function App() {
       }
 
       setResult(payload)
+      // Store an intentionally compact local summary, not the scan text itself.
       setHistory(prev => [
         {
           id: payload.id || String(Date.now()),
@@ -957,9 +1030,23 @@ function App() {
     } finally {
       setStatus('idle')
     }
-  }
+  }, [inputType, showToast, text])
+
+  // Ctrl/Cmd+Enter supports both Windows/Linux and macOS without stealing normal Enter.
+  // The memoized callback avoids a stale submission when the user changes text.
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault()
+        if (text.trim() && status !== 'loading') analyze()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [analyze, status, text])
 
   function copyReport() {
+    /** Export a plain-text dossier so sharing does not require unsafe HTML export. */
     if (!result) return
     audio.play('click')
     const dossierText = `CYBERLENS AI • CLASSIFIED INCIDENT DOSSIER
@@ -989,6 +1076,7 @@ Generated by CyberLens AI (PromptWars 2026 Edition)`
   }
 
   function copyRuleSnippet(code) {
+    /** Copy a proposed control for operator review; this browser never deploys it. */
     audio.play('click')
     navigator.clipboard?.writeText(code).then(() => {
       setCopied(true)
